@@ -13,8 +13,8 @@ load_dotenv()
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-FORECAST_DAYS = 10
-CARDS_PER_ROW = 5
+FORECAST_DAYS = 16  # Open-Meteo maximum
+CARDS_PER_ROW = 4
 
 # WMO weather interpretation codes -> (description, emoji)
 WEATHER_CODES = {
@@ -60,7 +60,7 @@ def geocode(city: str) -> dict | None:
 
 @st.cache_data(ttl=600)
 def fetch_weather(lat: float, lon: float) -> dict:
-    """Fetch current conditions and a 10-day daily forecast for the given coordinates."""
+    """Fetch current conditions and a daily forecast for the given coordinates."""
     params = {
         "latitude": lat,
         "longitude": lon,
