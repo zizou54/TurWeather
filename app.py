@@ -150,9 +150,17 @@ with st.sidebar:
         help="Read from OPENAI_API_KEY if set.",
     )
 
+
+def reset_form() -> None:
+    """Clear the city input; the rerun then renders no weather results."""
+    st.session_state.city = ""
+
+
 with st.form("search"):
-    city = st.text_input("City", placeholder="e.g. Istanbul")
-    submitted = st.form_submit_button("Get weather")
+    city = st.text_input("City", placeholder="e.g. Istanbul", key="city")
+    with st.container(horizontal=True):
+        submitted = st.form_submit_button("Get weather", type="primary")
+        st.form_submit_button("Refresh", on_click=reset_form)
 
 if submitted:
     if not city.strip():
