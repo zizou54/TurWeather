@@ -107,6 +107,7 @@ def forecast_days(daily: dict) -> list[dict]:
     return days
 
 
+@st.cache_data(ttl=600, show_spinner=False)
 def ai_summary(api_key: str, place: str, weather: dict, description: str, days: list[dict]) -> str:
     """Ask OpenAI for a short, friendly summary with practical advice."""
     client = OpenAI(api_key=api_key)
@@ -137,8 +138,47 @@ def ai_summary(api_key: str, place: str, weather: dict, description: str, days: 
     return response.choices[0].message.content
 
 
+THEMES = {
+    "light": {"bg": "#ffffff", "surface": "#f0f2f6", "text": "#31333f", "muted": "#6b6d7a", "border": "rgba(49, 51, 63, 0.2)"},
+    "dark": {"bg": "#0e1117", "surface": "#262730", "text": "#fafafa", "muted": "#a3a8b8", "border": "rgba(250, 250, 250, 0.2)"},
+}
+
+
+def apply_theme(dark: bool) -> None:
+    """Force light or dark colors with CSS, overriding the browser's own theme choice."""
+    c = THEMES["dark" if dark else "light"]
+    st.html(f"""
+<style>
+.stApp, [data-testid="stHeader"] {{ background-color: {c['bg']}; color: {c['text']}; }}
+[data-testid="stSidebar"] {{ background-color: {c['surface']}; }}
+.stApp h1, .stApp h2, .stApp h3, .stApp h4,
+[data-testid="stMarkdownContainer"], [data-testid="stWidgetLabel"],
+[data-testid="stMetricLabel"], [data-testid="stMetricValue"],
+[data-testid="stToolbar"] button, [data-testid="stSidebarCollapseButton"] button,
+[data-testid="stExpandSidebarButton"] {{ color: {c['text']}; }}
+[data-testid="stCaptionContainer"] {{ color: {c['muted']}; }}
+[data-baseweb="input"], [data-baseweb="base-input"], .stApp input {{
+    background-color: {c['surface']}; color: {c['text']}; border-color: {c['border']};
+}}
+[data-testid="stForm"], [data-testid="stVerticalBlockBorderWrapper"], .stApp hr {{ border-color: {c['border']}; }}
+[data-testid="stBaseButton-secondaryFormSubmit"] {{
+    background-color: {c['bg']}; color: {c['text']}; border-color: {c['border']};
+}}
+</style>
+""")
+
+
 st.set_page_config(page_title="TurWeather", page_icon="🌤️")
-st.title("🌤️ TurWeather")
+
+# Start the toggle in sync with whatever theme the browser is currently showing.
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = st.context.theme.type == "dark"
+
+title_col, toggle_col = st.columns([4, 1], vertical_alignment="center")
+title_col.title("🌤️ TurWeather")
+with toggle_col.container(horizontal_alignment="right"):
+    st.toggle("🌙 Dark mode", key="dark_mode")
+apply_theme(st.session_state.dark_mode)
 st.caption("Current weather for any city, with an AI-powered summary.")
 
 with st.sidebar:
@@ -152,8 +192,9 @@ with st.sidebar:
 
 
 def reset_form() -> None:
-    """Clear the city input; the rerun then renders no weather results."""
+    """Clear the city input and the remembered search, so no weather results render."""
     st.session_state.city = ""
+    st.session_state.pop("query", None)
 
 
 with st.form("search"):
@@ -164,17 +205,22 @@ with st.form("search"):
 
 if submitted:
     if not city.strip():
+        st.session_state.pop("query", None)
         st.warning("Please enter a city name.")
         st.stop()
+    st.session_state.query = city.strip()
 
+# Remember the last search so results survive reruns such as the dark mode toggle.
+query = st.session_state.get("query")
+if query:
     try:
-        location = geocode(city.strip())
+        location = geocode(query)
     except requests.RequestException as exc:
         st.error(f"Could not reach the geocoding service: {exc}")
         st.stop()
 
     if location is None:
-        st.error(f"City '{city}' not found.")
+        st.error(f"City '{query}' not found.")
         st.stop()
 
     place = ", ".join(
